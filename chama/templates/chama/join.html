@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-16 text-center">
+    
+    <div class="bg-white p-8 rounded-lg shadow-lg border-t-4 border-primary">
+        <div class="mb-6">
+            <span class="text-4xl">🤝</span>
+            <h2 class="text-2xl font-bold text-secondary mt-4">Join a Chama</h2>
+            <p class="text-gray-500">Enter the unique code shared by your admin.</p>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+            <div class="mb-6">
+                <input type="text" name="code" 
+                       class="w-full text-center text-2xl tracking-widest p-3 border-2 border-dashed border-gray-300 rounded-lg focus:outline-none focus:border-primary uppercase" 
+                       placeholder="ABCD-1234" required>
+            </div>
+
+            <button type="submit" class="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-orange-700 transition">
+                Join Group
+            </button>
+        </form>
+    </div>
+
+    <p class="mt-8 text-gray-400 text-sm">
+        Don't have a code? Ask the group admin to check their dashboard.
+    </p>
+
+</div>
+{% endblock %}

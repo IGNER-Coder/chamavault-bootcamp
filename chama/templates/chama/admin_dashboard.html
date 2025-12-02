@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-secondary">Admin Dashboard</h1>
+            <p class="text-gray-500">Manage Approvals & Group Assets</p>
+        </div>
+        <div class="bg-secondary text-white px-6 py-3 rounded-lg shadow-lg">
+            <p class="text-sm opacity-75">Total Group Assets</p>
+            <p class="text-2xl font-bold">KES {{ total_savings }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-gray-100 px-6 py-4 border-b border-gray-200">
+            <h2 class="font-bold text-gray-700">Pending Loan Requests</h2>
+        </div>
+
+        {% if pending_loans %}
+        <table class="w-full text-left">
+            <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-6 py-3">Member</th>
+                    <th class="px-6 py-3">Amount</th>
+                    <th class="px-6 py-3">Date</th>
+                    <th class="px-6 py-3">Savings</th>
+                    <th class="px-6 py-3 text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for loan in pending_loans %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-secondary">{{ loan.membership.user.username }}</td>
+                    <td class="px-6 py-4 font-bold text-primary">KES {{ loan.amount }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{{ loan.date_requested|date:"M d, Y" }}</td>
+                    <td class="px-6 py-4 text-sm text-green-600">
+                        Has KES {{ loan.membership.savings_balance }}
+                    </td>
+                    <td class="px-6 py-4 text-right space-x-2">
+                        <a href="{% url 'process_loan' loan.id 'reject' %}" class="text-red-500 hover:text-red-700 font-bold text-sm border border-red-200 px-3 py-1 rounded">
+                            Reject
+                        </a>
+                        <a href="{% url 'process_loan' loan.id 'approve' %}" class="bg-green-600 text-white hover:bg-green-700 font-bold text-sm px-4 py-1.5 rounded shadow">
+                            Approve
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-10 text-center text-gray-400">
+            <p>No pending approvals. Good job!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-6 text-right">
+        <a href="{% url 'dashboard' %}" class="text-primary hover:underline">Back to Member View &rarr;</a>
+    </div>
+
+</div>
+{% endblock %}
