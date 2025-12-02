@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg mt-10 border-t-4 border-red-500">
+    
+    <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold text-secondary">Repay Loan</h2>
+        <p class="text-gray-500">Outstanding Balance</p>
+        <p class="text-4xl font-bold text-red-600 mt-2">KES {{ loan.amount }}</p>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        
+        <div class="mb-6">
+            <label class="block text-gray-700 font-bold mb-2">Repayment Amount (KES)</label>
+            <input type="number" name="amount" class="w-full p-3 border rounded-lg focus:outline-none focus:border-red-500" placeholder="Enter amount..." required>
+        </div>
+
+        <button type="submit" class="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 transition flex justify-center items-center">
+            <span class="mr-2">💸</span> Pay Now
+        </button>
+    </form>
+    
+    <div class="mt-4 text-center">
+        <a href="{% url 'dashboard' %}" class="text-gray-500 hover:text-secondary">Cancel</a>
+    </div>
+</div>
+{% endblock %}

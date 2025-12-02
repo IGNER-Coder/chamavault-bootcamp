@@ -207,3 +207,99 @@ def join_chama(request):
         return redirect('dashboard')
 
     return render(request, 'chama/join.html')
+
+@login_required
+def repay_loan(request):
+    # 1. Get the active loan
+    membership = Membership.objects.get(user=request.user)
+    active_loan = Loan.objects.filter(membership=membership, status='approved').first()
+    
+    if not active_loan:
+        messages.info(request, "You have no active loans to repay!")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        amount = int(request.POST.get('amount'))
+        
+        # 2. Validation: Don't overpay
+        if amount > active_loan.amount:
+            messages.error(request, f"You only owe KES {active_loan.amount}. Do not overpay.")
+            return redirect('repay_loan')
+
+        # 3. Simulate Payment
+        time.sleep(2)
+        ref_code = f"PAY{random.randint(1000000, 9999999)}"
+        
+        # 4. Create Transaction Receipt
+        Transaction.objects.create(
+            membership=membership,
+            amount=amount,
+            transaction_type='loan_repayment',
+            reference=ref_code
+        )
+        
+        # 5. DEDUCT from Loan Amount (The Logic)
+        active_loan.amount -= amount
+        
+        # 6. Check if fully paid
+        if active_loan.amount <= 0:
+            active_loan.status = 'paid'
+            active_loan.amount = 0 # Ensure no negative numbers
+            messages.success(request, "Congratulations! Loan fully repaid.")
+        else:
+            messages.success(request, f"Payment Received. Remaining Balance: KES {active_loan.amount}")
+            
+        active_loan.save()
+        return redirect('dashboard')
+
+    return render(request, 'chama/repay_loan.html', {'loan': active_loan})
+
+@login_required
+def repay_loan(request):
+    # 1. Find the User's Membership
+    membership = Membership.objects.filter(user=request.user).first()
+    
+    # 2. Find their ACTIVE loan (Approved or Pending Repayment)
+    # We filter for 'approved' because that's the status when they have money.
+    active_loan = Loan.objects.filter(membership=membership, status='approved').first()
+    
+    # Safety Check: Do they even have a loan?
+    if not active_loan:
+        messages.info(request, "You have no active loans to repay!")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        amount = int(request.POST.get('amount'))
+        
+        # 3. Validation: Don't let them overpay!
+        if amount > active_loan.amount:
+            messages.error(request, f"REJECTED: You only owe KES {active_loan.amount}. Do not overpay.")
+            return redirect('repay_loan')
+
+        # 4. Simulate Payment Processing
+        time.sleep(2)
+        ref_code = f"PAY{random.randint(1000000, 9999999)}"
+        
+        # 5. Create the Receipt (Transaction)
+        Transaction.objects.create(
+            membership=membership,
+            amount=amount,
+            transaction_type='loan_repayment',
+            reference=ref_code
+        )
+        
+        # 6. THE CORE LOGIC: Reduce the Debt
+        active_loan.amount -= amount
+        
+        # 7. Check if fully paid
+        if active_loan.amount <= 0:
+            active_loan.status = 'paid'
+            active_loan.amount = 0 # Clean up just in case
+            messages.success(request, "CONGRATULATIONS! Your loan is fully repaid.")
+        else:
+            messages.success(request, f"Payment Received. Remaining Balance: KES {active_loan.amount}")
+            
+        active_loan.save()
+        return redirect('dashboard')
+
+    return render(request, 'chama/repay_loan.html', {'loan': active_loan})
