@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto mt-16 text-center">
+    
+    <h1 class="text-6xl font-extrabold text-secondary tracking-tight mb-4">
+        Your Chama, <span class="text-primary">Digitized.</span>
+    </h1>
+    <p class="text-xl text-gray-500 max-w-2xl mx-auto mb-10">
+        Say goodbye to paper records. ChamaVault automates your savings, 
+        instant loan limits, and transparency. Trust is built on code.
+    </p>
+
+    <div class="flex justify-center space-x-6 mb-16">
+        <a href="{% url 'register' %}" class="px-8 py-4 bg-primary text-white text-lg font-bold rounded-lg shadow-lg hover:bg-orange-700 transition transform hover:-translate-y-1">
+            Start a Chama
+        </a>
+        <a href="{% url 'join_chama' %}" class="px-8 py-4 bg-white text-secondary text-lg font-bold rounded-lg shadow-lg border border-gray-200 hover:bg-gray-50 transition transform hover:-translate-y-1">
+            Join Existing
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-left mt-20">
+        
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+            <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                <span class="text-2xl">💰</span>
+            </div>
+            <h3 class="text-xl font-bold text-secondary mb-2">Smart Savings</h3>
+            <p class="text-gray-500">Track every coin. Members see their balances update in real-time via M-Pesa integration.</p>
+        </div>
+
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+            <div class="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
+                <span class="text-2xl">⚡</span>
+            </div>
+            <h3 class="text-xl font-bold text-secondary mb-2">Instant Loans</h3>
+            <p class="text-gray-500">Our 3x Algorithm automatically calculates eligibility. Request and get approved in seconds.</p>
+        </div>
+
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <span class="text-2xl">🔒</span>
+            </div>
+            <h3 class="text-xl font-bold text-secondary mb-2">The Vault</h3>
+            <p class="text-gray-500">Bank-grade security ensures your group's data is safe, transparent, and immutable.</p>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

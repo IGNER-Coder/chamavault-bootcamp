@@ -6,6 +6,12 @@ import random                        # <--- You might be missing this too!
 from .models import Membership, Transaction
 from .models import Membership, Transaction, Loan
 from .models import Membership, Transaction, Loan, ChamaGroup
+
+def index(request):
+    # If they are already logged in, send them to dashboard
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'chama/index.html')
 @login_required
 def dashboard(request):
     try:
@@ -100,24 +106,33 @@ def request_loan(request):
 
 @login_required
 def admin_dashboard(request):
-    # 1. Security Check: Only allow 'staff' (Superusers)
+    # 1. Security Check
     if not request.user.is_staff:
         messages.error(request, "Access Denied: Admins Only.")
         return redirect('dashboard')
 
-    # 2. Get all Pending Loans
+    # 2. Get Pending Loans
     pending_loans = Loan.objects.filter(status='pending').order_by('-date_requested')
     
-    # 3. Get Total Group Savings (For the "Vault" display)
-    # We sum up the savings_balance of all memberships
+    # --- THIS WAS THE MISSING PART CAUSING THE CRASH ---
+    members = Membership.objects.all()  # <--- You need to define 'members' here!
+    # ---------------------------------------------------
+
+    # 3. Calculate Total Savings & Prepare Chart Data
     total_savings = 0
-    members = Membership.objects.all()
+    member_labels = []
+    member_data = []
+    
     for member in members:
         total_savings += member.savings_balance
+        member_labels.append(member.user.username)
+        member_data.append(float(member.savings_balance))
 
     context = {
         'pending_loans': pending_loans,
         'total_savings': total_savings,
+        'member_labels': member_labels,
+        'member_data': member_data,
     }
     return render(request, 'chama/admin_dashboard.html', context)
 

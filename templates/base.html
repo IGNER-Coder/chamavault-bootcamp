@@ -7,23 +7,23 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#EA580C', // Sunset Orange
-                        secondary: '#1C1917', // Deep Slate
-                        background: '#FAFAF9', // Warm Stone
-                        success: '#0D9488', // Teal Green
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    primary: '#059669',    // Emerald (emerald-600)
+                    secondary: '#064E3B',  // Dark Forest (emerald-900)
+                    background: '#F0FDF4', // Mint White (green-50)
+                    success: '#16A34A',    // Standard Green
+                },
+                fontFamily: {
+                    sans: ['Inter', 'sans-serif'],
                 }
             }
         }
-    </script>
+    }
+</script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
     
@@ -35,22 +35,34 @@
 <body class="bg-background text-secondary min-h-screen flex flex-col">
 
     <nav class="bg-secondary text-white shadow-lg">
-        <div class="flex items-center space-x-4">
-    {% if user.is_authenticated %}
-        <span class="text-gray-300 mr-2">Hi, {{ user.username }}</span>
-        <a href="{% url 'dashboard' %}" class="hover:text-primary transition">Dashboard</a>
-        <a href="{% url 'logout' %}" class="bg-gray-700 px-4 py-2 rounded-md hover:bg-red-600 transition">Logout</a>
-    {% else %}
-        <a href="{% url 'login' %}" class="hover:text-primary transition">Login</a>
-        <a href="{% url 'register' %}" class="bg-primary px-4 py-2 rounded-md hover:bg-orange-700 transition">Get Started</a>
-    {% endif %}
-</div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                
+                <div class="flex items-center">
+                    <a href="{% url 'index' %}" class="text-2xl font-bold text-primary hover:text-orange-700 transition">
+                        ChamaVault
+                    </a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <span class="text-gray-300 mr-2 text-sm hidden md:inline">Hi, {{ user.username }}</span>
+                        <a href="{% url 'dashboard' %}" class="hover:text-primary transition">Dashboard</a>
+                        <a href="{% url 'logout' %}" class="bg-gray-700 px-4 py-2 rounded-md hover:bg-red-600 transition text-sm">Logout</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="hover:text-primary transition">Login</a>
+                        <a href="{% url 'register' %}" class="bg-primary px-4 py-2 rounded-md hover:bg-orange-700 transition text-sm font-bold">Get Started</a>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
     </nav>
 
     <main class="flex-grow container mx-auto px-4 py-8">
         {% if messages %}
             {% for message in messages %}
-                <div class="p-4 mb-4 rounded-md {% if message.tags == 'success' %}bg-success text-white{% else %}bg-red-500 text-white{% endif %}">
+                <div class="p-4 mb-4 rounded-md shadow {% if message.tags == 'success' %}bg-success text-white{% else %}bg-red-500 text-white{% endif %}">
                     {{ message }}
                 </div>
             {% endfor %}
@@ -60,7 +72,7 @@
         {% endblock %}
     </main>
 
-    <footer class="bg-secondary text-gray-400 py-6 text-center">
+    <footer class="bg-secondary text-gray-400 py-6 text-center border-t border-gray-800">
         <p>&copy; 2025 ChamaVault. KCA Bootcamp Project.</p>
     </footer>
 
