@@ -20,6 +20,12 @@ class ChamaGroup(models.Model):
     name = models.CharField(max_length=100)
     chama_code = models.CharField(max_length=10, default=generate_unique_code, unique=True, editable=False)
     chama_type = models.CharField(max_length=20, choices=CHAMA_TYPES, default='savings')
+    
+    # NEW: The Rule (e.g., Everyone must contribute 1000)
+    contribution_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    # NEW: Track the Merry-Go-Round Pot
+    pot_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     created_at = models.DateTimeField(auto_now_add=True)
     
     members = models.ManyToManyField(settings.AUTH_USER_MODEL, through='Membership')
@@ -38,6 +44,9 @@ class Membership(models.Model):
     group = models.ForeignKey(ChamaGroup, on_delete=models.CASCADE)
     role = models.CharField(max_length=10, choices=ROLES, default='member')
     savings_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    
+    # NEW: For Merry-Go-Round tracking
+    has_eaten = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

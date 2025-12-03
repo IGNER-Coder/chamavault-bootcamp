@@ -22,10 +22,27 @@
             <div class="text-3xl font-bold text-secondary mt-1">KES {{ membership.savings_balance }}</div>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-teal-600">
-            <h2 class="text-gray-500 text-sm font-bold uppercase">Loan Limit</h2>
-            <div class="text-3xl font-bold text-teal-700 mt-1">KES {{ loan_limit }}</div>
-        </div>
+        {% if membership.group.chama_type == 'merry' %}
+            
+            <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-purple-600">
+                <h2 class="text-gray-500 text-sm font-bold uppercase">Current Pot</h2>
+                <div class="text-3xl font-bold text-purple-700 mt-1">
+                    KES {{ membership.group.pot_balance }}
+                </div>
+                <p class="text-xs text-gray-400 mt-2">
+                    Target: KES {{ membership.group.contribution_amount }} per person
+                </p>
+            </div>
+
+        {% else %}
+
+            <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-teal-600">
+                <h2 class="text-gray-500 text-sm font-bold uppercase">Loan Limit</h2>
+                <div class="text-3xl font-bold text-teal-700 mt-1">KES {{ loan_limit }}</div>
+                <p class="text-xs text-gray-400 mt-2">Calculated as 3x Savings</p>
+            </div>
+
+        {% endif %}
 
         <div class="bg-white p-6 rounded-lg shadow-md border-t-4 {% if active_loan %}border-orange-500{% else %}border-gray-200{% endif %}">
             <h2 class="text-gray-500 text-sm font-bold uppercase">Active Loan</h2>

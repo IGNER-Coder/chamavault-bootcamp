@@ -35,32 +35,78 @@ def dashboard(request):
 @login_required
 def deposit(request):
     if request.method == 'POST':
-        # Get the amount from the form
         amount = int(request.POST.get('amount'))
         
-        # 1. SIMULATION: Pause for 2 seconds
-        time.sleep(2)  # <--- This is what caused the crash!
-        
-        # 2. SIMULATION: Generate fake M-Pesa Code
+        # 1. Simulation
+        time.sleep(2)
         ref_code = f"QKH{random.randint(1000000, 9999999)}"
         
-        # 3. Get membership
-        membership = Membership.objects.get(user=request.user)
+        # 2. Get Data
+        membership = Membership.objects.filter(user=request.user).first()
+        group = membership.group
         
-        # 4. Create Receipt
+        if not membership:
+            messages.error(request, "No group found.")
+            return redirect('dashboard')
+
+        # 3. Create Receipt (Happens for both types)
         Transaction.objects.create(
             membership=membership,
             amount=amount,
             transaction_type='deposit',
             reference=ref_code
         )
+
+        # --- THE FORK IN THE ROAD ---
         
-        # 5. Update Balance
-        membership.savings_balance += amount
-        membership.save()
-        
-        # 6. Success Message
-        messages.success(request, f"Confirmed! Received KES {amount}. Ref: {ref_code}")
+        if group.chama_type == 'savings':
+            # SCENARIO A: Standard Savings
+            membership.savings_balance += amount
+            membership.save()
+            messages.success(request, f"Deposit Confirmed! New Balance: {membership.savings_balance}")
+
+        elif group.chama_type == 'merry':
+            # SCENARIO B: Merry-Go-Round
+            
+            # A. Update Group Pot
+            group.pot_balance += amount
+            
+            # B. Track that THIS member contributed (for records)
+            membership.savings_balance += amount 
+            membership.save()
+            
+            # C. Calculate Target Pot (e.g. 5 members * 1000 = 5000)
+            member_count = Membership.objects.filter(group=group).count()
+            target_pot = group.contribution_amount * member_count
+            
+            messages.success(request, f"Contribution Received! Pot: {group.pot_balance} / {target_pot}")
+
+            # D. CHECK FOR WINNER (The Automation)
+            if group.pot_balance >= target_pot and target_pot > 0:
+                # 1. Find someone who hasn't eaten yet
+                winner = Membership.objects.filter(group=group, has_eaten=False).first()
+                
+                if winner:
+                    # 2. PAYOUT!
+                    Transaction.objects.create(
+                        membership=winner,
+                        amount=group.pot_balance, # They take the whole pot
+                        transaction_type='withdrawal', # It leaves the system
+                        reference=f"WIN-{random.randint(1000,9999)}"
+                    )
+                    
+                    # 3. Reset the Cycle
+                    payout_amount = group.pot_balance
+                    group.pot_balance = 0 # Empty the pot
+                    winner.has_eaten = True
+                    winner.save()
+                    
+                    messages.success(request, f"🎉 MERRY-GO-ROUND ROUND COMPLETE! {winner.user.username} has been paid KES {payout_amount}!")
+                else:
+                    messages.info(request, "Round complete, but everyone has eaten! Admin needs to reset the cycle.")
+            
+            group.save()
+
         return redirect('dashboard')
 
     return render(request, 'chama/deposit.html')
