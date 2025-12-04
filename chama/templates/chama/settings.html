@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg mt-10 border-t-4 border-secondary">
+    
+    <div class="mb-8 border-b pb-4">
+        <h2 class="text-2xl font-bold text-secondary">Group Constitution</h2>
+        <p class="text-gray-500">Configure rules for {{ group.name }}</p>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        
+        <div class="mb-6">
+            <label class="block text-gray-700 font-bold mb-2">Monthly Contribution (KES)</label>
+            <p class="text-xs text-gray-400 mb-2">How much must each member pay?</p>
+            <input type="number" name="contribution_amount" value="{{ group.contribution_amount }}" 
+                   class="w-full p-3 border rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-700 font-bold mb-2">Deadline Day (1-31)</label>
+            <p class="text-xs text-gray-400 mb-2">If they pay after this day of the month, they are late.</p>
+            <input type="number" name="deadline_day" value="{{ group.contribution_day }}" min="1" max="31"
+                   class="w-full p-3 border rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-700 font-bold mb-2">Late Penalty Fee (KES)</label>
+            <p class="text-xs text-gray-400 mb-2">Automatic deduction if payment is late.</p>
+            <input type="number" name="penalty_fee" value="{{ group.late_penalty_fee }}" 
+                   class="w-full p-3 border rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none" required>
+        </div>
+
+        <div class="flex items-center justify-between mt-8">
+            <a href="{% url 'admin_dashboard' %}" class="text-gray-500 hover:text-secondary">Cancel</a>
+            <button type="submit" class="bg-secondary text-white font-bold py-3 px-8 rounded-lg hover:bg-gray-800 transition shadow-lg">
+                Save Rules
+            </button>
+        </div>
+    </form>
+    
+</div>
+{% endblock %}

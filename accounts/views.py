@@ -21,6 +21,28 @@ def register_view(request):
             messages.error(request, "Username already taken.")
             return redirect('register')
 
+        # --- NEW VALIDATION BLOCK ---
+        
+        # 1. Validate National ID (Must be numbers, 7-8 digits)
+        if not nid.isdigit():
+            messages.error(request, "National ID must contain numbers only.")
+            return redirect('register')
+        if len(nid) < 7 or len(nid) > 8:
+            messages.error(request, "Invalid National ID length (should be 7-8 digits).")
+            return redirect('register')
+
+        # 2. Validate Phone (Must start with 07 or 254)
+        if not (phone.startswith('07') or phone.startswith('01') or phone.startswith('254')):
+            messages.error(request, "Invalid Phone Number format.")
+            return redirect('register')
+        
+        # 3. Check for duplicates manually (Double safety)
+        if CustomUser.objects.filter(national_id=nid).exists():
+            messages.error(request, "This National ID is already registered.")
+            return redirect('register')
+            
+        # ... continue to create user ...
+
         # 2. Create the User
         try:
             user = CustomUser.objects.create_user(

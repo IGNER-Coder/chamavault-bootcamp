@@ -3,38 +3,91 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     
-    <div class="mb-8 flex justify-between items-end">
+    <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-            <h1 class="text-3xl font-bold text-secondary">Welcome, <span class="text-primary">{{ user.username|title }}</span></h1>
-            <p class="text-gray-500">Group: {{ membership.group.name }}</p>
+            <div class="flex items-center gap-3">
+                <span class="text-4xl">
+                    {% if membership.group.chama_type == 'merry' %}🎠
+                    {% elif membership.group.chama_type == 'lending' %}🏦
+                    {% else %}🐖{% endif %}
+                </span>
+                <h1 class="text-3xl font-bold text-secondary">Welcome, <span class="text-primary">{{ user.username|title }}</span></h1>
+            </div>
+            <p class="text-gray-500 ml-12">Group: <span class="font-bold">{{ membership.group.name }}</span></p>
         </div>
-        {% if user.is_staff %}
-        <a href="{% url 'admin_dashboard' %}" class="text-sm font-bold text-primary hover:underline">
-            Go to Admin Panel &rarr;
+
+        {% if membership.role == 'admin' or user.is_staff %}
+        <a href="{% url 'admin_dashboard' %}" class="bg-secondary text-white text-xs font-bold px-4 py-2 rounded shadow hover:bg-gray-800 transition flex items-center">
+            <span>⚙️</span> <span class="ml-2">Manage Group</span>
         </a>
         {% endif %}
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
-        <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-primary">
-            <h2 class="text-gray-500 text-sm font-bold uppercase">My Savings</h2>
-            <div class="text-3xl font-bold text-secondary mt-1">KES {{ membership.savings_balance }}</div>
+    {% if membership.group.chama_type == 'merry' %}
+    
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-8 text-white mb-8 relative overflow-hidden">
+            <div class="relative z-10">
+                <h2 class="text-purple-200 uppercase text-xs font-bold tracking-widest">Current Pot Value</h2>
+                <div class="text-5xl font-bold mt-2">KES {{ membership.group.pot_balance }}</div>
+                <p class="mt-2 text-purple-100">Target: KES {{ membership.group.contribution_amount }} per person</p>
+            </div>
+            <div class="absolute right-0 top-0 h-32 w-32 bg-white opacity-10 rounded-full transform translate-x-10 -translate-y-10"></div>
         </div>
 
-        {% if membership.group.chama_type == 'merry' %}
-            
-            <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-purple-600">
-                <h2 class="text-gray-500 text-sm font-bold uppercase">Current Pot</h2>
-                <div class="text-3xl font-bold text-purple-700 mt-1">
-                    KES {{ membership.group.pot_balance }}
-                </div>
-                <p class="text-xs text-gray-400 mt-2">
-                    Target: KES {{ membership.group.contribution_amount }} per person
-                </p>
+        <div class="bg-white rounded-lg shadow-md mb-8">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-gray-700">🔄 Rotation Cycle</h3>
+                <span class="text-xs text-gray-500">Order by join date</span>
             </div>
+            
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for member in rotation_members %}
+                <div class="flex items-center p-3 rounded-lg border {% if member.has_eaten %}bg-green-50 border-green-200{% else %}bg-white border-gray-200{% endif %}">
+                    <div class="h-10 w-10 rounded-full flex items-center justify-center mr-3 {% if member.has_eaten %}bg-green-100 text-green-600{% else %}bg-gray-100 text-gray-400{% endif %}">
+                        {% if member.has_eaten %}✓{% else %}{{ forloop.counter }}{% endif %}
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm {% if member.has_eaten %}text-green-800{% else %}text-gray-700{% endif %}">
+                            {{ member.user.username|title }}
+                            {% if member.user == request.user %} (You){% endif %}
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            {% if member.has_eaten %}Paid Out{% else %}Waiting...{% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
 
-        {% else %}
+    {% else %}
+
+        {% if membership.group.target_amount > 0 and percentage_complete %}
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8 border-l-4 border-blue-500">
+            <div class="flex justify-between items-end mb-2">
+                <div>
+                    <h3 class="font-bold text-gray-700">Goal: {{ membership.group.goal_name|default:"Group Target" }}</h3>
+                    <p class="text-xs text-gray-500">Target: KES {{ membership.group.target_amount }}</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-2xl font-bold text-blue-600">{{ percentage_complete|floatformat:0 }}%</span>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-blue-600 h-3 rounded-full transition-all duration-1000" style="width: {{ percentage_complete }}%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 text-right">
+                Saved: KES {{ total_group_savings }}
+            </p>
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            
+            <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-primary">
+                <h2 class="text-gray-500 text-sm font-bold uppercase">My Savings</h2>
+                <div class="text-3xl font-bold text-secondary mt-1">KES {{ membership.savings_balance }}</div>
+            </div>
 
             <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-teal-600">
                 <h2 class="text-gray-500 text-sm font-bold uppercase">Loan Limit</h2>
@@ -42,66 +95,68 @@
                 <p class="text-xs text-gray-400 mt-2">Calculated as 3x Savings</p>
             </div>
 
-        {% endif %}
-
-        <div class="bg-white p-6 rounded-lg shadow-md border-t-4 {% if active_loan %}border-orange-500{% else %}border-gray-200{% endif %}">
-            <h2 class="text-gray-500 text-sm font-bold uppercase">Active Loan</h2>
-            
-            {% if active_loan %}
-                <div class="text-3xl font-bold text-orange-600 mt-1">KES {{ active_loan.amount }}</div>
-                
-                <div class="flex justify-between items-center mt-3">
-                    <span class="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
-                        {{ active_loan.get_status_display }}
-                    </span>
-                    
-                    <a href="{% url 'repay_loan' %}" class="bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded hover:bg-red-200 transition">
-                        Pay Back
-                    </a>
-                </div>
-            {% else %}
-                <div class="text-gray-400 mt-2">No active loans</div>
-                <a href="{% url 'request_loan' %}" class="text-sm text-primary hover:underline">Apply Now</a>
-            {% endif %}
+            <div class="bg-white p-6 rounded-lg shadow-md border-t-4 {% if active_loan %}border-orange-500{% else %}border-gray-200{% endif %}">
+                <h2 class="text-gray-500 text-sm font-bold uppercase">Active Loan</h2>
+                {% if active_loan %}
+                    <div class="text-3xl font-bold text-orange-600 mt-1">KES {{ active_loan.amount }}</div>
+                    <div class="flex justify-between items-center mt-3">
+                        <span class="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">{{ active_loan.get_status_display }}</span>
+                        <a href="{% url 'repay_loan' %}" class="bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded hover:bg-red-200 transition">Pay Back</a>
+                    </div>
+                {% else %}
+                    <div class="text-gray-400 mt-2">No active loans</div>
+                    <a href="{% url 'request_loan' %}" class="text-sm text-primary hover:underline">Apply Now</a>
+                {% endif %}
+            </div>
         </div>
-    </div>
+
+    {% endif %}
 
     <div class="flex space-x-4 mb-8">
-        <a href="{% url 'deposit' %}" class="flex-1 bg-primary text-white text-center py-3 rounded-lg font-bold hover:bg-orange-700 transition">
-            + Deposit
+        <a href="{% url 'deposit' %}" class="flex-1 bg-primary text-white text-center py-3 rounded-lg font-bold hover:bg-orange-700 transition shadow-md">
+            + Deposit Funds
         </a>
-        <a href="{% url 'request_loan' %}" class="flex-1 bg-secondary text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition">
+        <a href="{% url 'request_loan' %}" class="flex-1 bg-secondary text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition shadow-md">
             Request Loan
         </a>
     </div>
 
     <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
             <h3 class="font-bold text-gray-700">Recent Transactions</h3>
+            <a href="{% url 'download_statement' %}" target="_blank" class="text-xs bg-white border border-gray-300 text-gray-600 px-3 py-1 rounded hover:bg-gray-50 transition">
+                📄 Statement
+            </a>
         </div>
-        <table class="w-full text-left">
-            <tbody class="divide-y divide-gray-100">
-                {% for trans in recent_transactions %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4">
-                        <p class="font-bold text-gray-800 capitalize">{{ trans.transaction_type }}</p>
-                        <p class="text-xs text-gray-400">{{ trans.created_at|date:"M d, H:i" }}</p>
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        {% if trans.transaction_type == 'deposit' %}
-                            <span class="text-green-600 font-bold">+ {{ trans.amount }}</span>
-                        {% else %}
-                            <span class="text-gray-600 font-bold">{{ trans.amount }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td class="px-6 py-8 text-center text-gray-400" colspan="2">No transactions yet.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left whitespace-nowrap">
+                <tbody class="divide-y divide-gray-100">
+                    {% for trans in recent_transactions %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <p class="font-bold text-gray-800 capitalize text-sm">{{ trans.transaction_type }}</p>
+                            <p class="text-xs text-gray-400">{{ trans.created_at|date:"M d, H:i" }}</p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{{ trans.reference|default:"..." }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            {% if trans.transaction_type == 'deposit' %}
+                                <span class="text-green-600 font-bold">+ {{ trans.amount }}</span>
+                            {% else %}
+                                <span class="text-gray-600 font-bold">{{ trans.amount }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="px-6 py-8 text-center text-gray-400" colspan="3">No transactions yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
 </div>

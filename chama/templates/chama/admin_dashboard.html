@@ -1,123 +1,150 @@
 {% extends 'base.html' %}
-
-{% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div class="max-w-6xl mx-auto">
+{% block content %}
+<div class="max-w-7xl mx-auto">
     
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="text-3xl">
+                    {% if group.chama_type == 'merry' %}🎠{% elif group.chama_type == 'lending' %}🏦{% else %}🐖{% endif %}
+                </span>
+                <h1 class="text-3xl font-bold text-secondary">Admin Dashboard</h1>
+            </div>
+            <p class="text-gray-500">{{ group.name }} • <span class="uppercase font-bold text-xs tracking-wider">{{ group.get_chama_type_display }}</span></p>
+        </div>
+        
+        <div class="flex gap-2">
+            <a href="{% url 'group_settings' %}" class="flex items-center space-x-2 bg-white border border-gray-300 text-secondary px-4 py-2 rounded-lg hover:bg-gray-50 transition shadow-sm">
+                <span>⚙️</span> <span class="font-bold text-sm">Rules</span>
+            </a>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
-        <div class="col-span-1 flex flex-col justify-between">
-            <div class="mb-4">
-                <h1 class="text-3xl font-bold text-secondary">Admin Dashboard</h1>
-                <p class="text-gray-500">Manage Approvals & Group Assets</p>
-            </div>
-            
-            <div class="bg-secondary text-white px-6 py-6 rounded-lg shadow-lg">
+        <div class="bg-secondary text-white p-6 rounded-lg shadow-lg relative overflow-hidden">
+            {% if group.chama_type == 'lending' %}
+                <p class="text-sm opacity-75 uppercase font-bold">Liquid Cash (Available)</p>
+                <p class="text-4xl font-bold mt-2 text-green-400">KES {{ liquid_cash }}</p>
+                <p class="text-xs text-gray-400 mt-2">Total Savings - Loans Out</p>
+            {% elif group.chama_type == 'merry' %}
+                <p class="text-sm opacity-75 uppercase font-bold">Current Pot</p>
+                <p class="text-4xl font-bold mt-2 text-purple-400">KES {{ group.pot_balance }}</p>
+                <p class="text-xs text-gray-400 mt-2">Target: {{ group.contribution_amount }} per person</p>
+            {% else %}
                 <p class="text-sm opacity-75 uppercase font-bold">Total Group Assets</p>
                 <p class="text-4xl font-bold mt-2">KES {{ total_savings }}</p>
-            </div>
+            {% endif %}
         </div>
 
-        <div class="col-span-1 md:col-span-2 bg-white p-4 rounded-lg shadow-lg border border-gray-100">
-            <h3 class="text-gray-500 font-bold mb-2 text-sm uppercase">Member Savings Performance</h3>
-            <div class="relative h-48 w-full">
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-100">
+             {% if group.chama_type == 'lending' %}
+                <p class="text-gray-500 font-bold uppercase text-xs">Loans Disbursed</p>
+                <p class="text-3xl font-bold text-secondary mt-1">KES {{ total_loans_out }}</p>
+             {% else %}
+                <p class="text-gray-500 font-bold uppercase text-xs">Active Members</p>
+                <p class="text-3xl font-bold text-secondary mt-1">{{ member_labels|length }}</p>
+             {% endif %}
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <div class="relative h-24 w-full">
                 <canvas id="savingsChart"></canvas>
             </div>
         </div>
-
     </div>
 
-    <div class="bg-white rounded-lg shadow-md overflow-hidden">
-        <div class="bg-gray-100 px-6 py-4 border-b border-gray-200">
-            <h2 class="font-bold text-gray-700">Pending Loan Requests</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-bold text-gray-700">Recent Contributions</h3>
+                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Live Feed</span>
+            </div>
+            <div class="overflow-x-auto max-h-96 overflow-y-auto"> <table class="min-w-full text-left">
+                    <thead class="bg-gray-100 text-xs uppercase text-gray-500">
+                        <tr>
+                            <th class="px-6 py-3">Member</th>
+                            <th class="px-6 py-3">Amount</th>
+                            <th class="px-6 py-3">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for deposit in recent_deposits %}
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-3 font-medium text-gray-900">{{ deposit.membership.user.username|title }}</td>
+                            <td class="px-6 py-3 font-bold text-green-600">+ {{ deposit.amount }}</td>
+                            <td class="px-6 py-3 text-xs text-gray-500">
+                                {{ deposit.created_at|date:"M d, H:i" }}
+                                {% if deposit.status == 'pending' %}
+                                    <span class="text-yellow-500 ml-1">⏳</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="px-6 py-4 text-center text-gray-400">No recent deposits.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        {% if pending_loans %}
-        <table class="w-full text-left">
-            <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
-                <tr>
-                    <th class="px-6 py-3">Member</th>
-                    <th class="px-6 py-3">Amount</th>
-                    <th class="px-6 py-3">Date</th>
-                    <th class="px-6 py-3">Savings</th>
-                    <th class="px-6 py-3 text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-                {% for loan in pending_loans %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 font-medium text-secondary">{{ loan.membership.user.username }}</td>
-                    <td class="px-6 py-4 font-bold text-primary">KES {{ loan.amount }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ loan.date_requested|date:"M d, Y" }}</td>
-                    <td class="px-6 py-4 text-sm text-green-600">
-                        Has KES {{ loan.membership.savings_balance }}
-                    </td>
-                    <td class="px-6 py-4 text-right space-x-2">
-                        <a href="{% url 'process_loan' loan.id 'reject' %}" class="text-red-500 hover:text-red-700 font-bold text-sm border border-red-200 px-3 py-1 rounded transition">
-                            Reject
-                        </a>
-                        <a href="{% url 'process_loan' loan.id 'approve' %}" class="bg-green-600 text-white hover:bg-green-700 font-bold text-sm px-4 py-1.5 rounded shadow transition">
-                            Approve
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="p-10 text-center text-gray-400">
-            <p>No pending approvals. Good job!</p>
+        <div class="bg-white rounded-lg shadow overflow-hidden h-fit">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h3 class="font-bold text-gray-700">Pending Approvals</h3>
+            </div>
+            
+            {% if pending_loans %}
+                <table class="w-full text-left">
+                    <tbody class="divide-y divide-gray-100">
+                        {% for loan in pending_loans %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <p class="font-bold text-sm">{{ loan.membership.user.username }}</p>
+                                <p class="text-xs text-gray-500">Requested: {{ loan.date_requested|date:"M d" }}</p>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-primary text-sm">KES {{ loan.amount }}</td>
+                            <td class="px-6 py-4 text-right space-x-1">
+                                <a href="{% url 'process_loan' loan.id 'approve' %}" class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded hover:bg-green-200">Approve</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="p-8 text-center text-gray-400">
+                    <span class="text-4xl block mb-2">✅</span>
+                    <p>All caught up!</p>
+                </div>
+            {% endif %}
         </div>
-        {% endif %}
-    </div>
 
-    <div class="mt-6 text-right">
-        <a href="{% url 'dashboard' %}" class="text-primary hover:underline">Back to Member View &rarr;</a>
     </div>
-
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    // ... paste your existing chart script here ...
+    // Make sure to use {{ member_labels|safe }} and {{ member_data|safe }}
+      document.addEventListener('DOMContentLoaded', function() {
         const ctx = document.getElementById('savingsChart').getContext('2d');
-        
         const savingsChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                // The '|safe' filter is CRITICAL. It lets Django pass Python lists to JS arrays.
                 labels: {{ member_labels|safe }}, 
                 datasets: [{
-                    label: 'Savings (KES)',
+                    label: 'Savings',
                     data: {{ member_data|safe }},
-                    backgroundColor: '#059669', // Emerald Green
-                    borderColor: '#064E3B',     // Dark Forest
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    barPercentage: 0.6
+                    backgroundColor: '#059669',
+                    borderRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: '#f3f4f6'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false // Hide label to look cleaner
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } }
             }
         });
     });

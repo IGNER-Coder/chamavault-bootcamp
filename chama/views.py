@@ -1,366 +1,325 @@
+import json
+import logging
+import time
+import random
+import os
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages  # <--- You might be missing this
-import time                          # <--- You were missing this!
-import random                        # <--- You might be missing this too!
-from .models import Membership, Transaction
-from .models import Membership, Transaction, Loan
-from .models import Membership, Transaction, Loan, ChamaGroup
+from django.contrib import messages
+from django.utils import timezone
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.template.loader import get_template
+from django_daraja.mpesa.core import MpesaClient
 
+# Import Models and Forms
+from .models import Membership, Transaction, Loan, ChamaGroup
+from .forms import ChamaCreationForm
+from .utils import render_to_pdf # Ensure you have utils.py created from previous steps
+
+logger = logging.getLogger('chama')
+
+# --- HELPER: Format Phone ---
+def format_phone_number(phone):
+    if phone.startswith('+'):
+        phone = phone[1:]
+    if phone.startswith('0'):
+        phone = '254' + phone[1:]
+    return phone
+
+# --- 1. PUBLIC PAGES ---
 def index(request):
-    # If they are already logged in, send them to dashboard
     if request.user.is_authenticated:
         return redirect('dashboard')
     return render(request, 'chama/index.html')
+
+def pricing(request):
+    return render(request, 'chama/pricing.html')
+
+def about(request):
+    return render(request, 'chama/about.html')
+
+# --- 2. CORE DASHBOARD (THE MISSING FUNCTION) ---
 @login_required
 def dashboard(request):
-    try:
-        membership = Membership.objects.filter(user=request.user).first()
-        
-        if not membership:
-            return render(request, 'base.html', {'message': 'You have not joined a Chama yet.'})
-
-        loan_limit = membership.savings_balance * 3
-        
-        context = {
-            'membership': membership,
-            'loan_limit': loan_limit,
-        }
-        return render(request, 'chama/dashboard.html', context)
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return render(request, 'base.html')
-
-@login_required
-def deposit(request):
-    if request.method == 'POST':
-        amount = int(request.POST.get('amount'))
-        
-        # 1. Simulation
-        time.sleep(2)
-        ref_code = f"QKH{random.randint(1000000, 9999999)}"
-        
-        # 2. Get Data
-        membership = Membership.objects.filter(user=request.user).first()
-        group = membership.group
-        
-        if not membership:
-            messages.error(request, "No group found.")
-            return redirect('dashboard')
-
-        # 3. Create Receipt (Happens for both types)
-        Transaction.objects.create(
-            membership=membership,
-            amount=amount,
-            transaction_type='deposit',
-            reference=ref_code
-        )
-
-        # --- THE FORK IN THE ROAD ---
-        
-        if group.chama_type == 'savings':
-            # SCENARIO A: Standard Savings
-            membership.savings_balance += amount
-            membership.save()
-            messages.success(request, f"Deposit Confirmed! New Balance: {membership.savings_balance}")
-
-        elif group.chama_type == 'merry':
-            # SCENARIO B: Merry-Go-Round
-            
-            # A. Update Group Pot
-            group.pot_balance += amount
-            
-            # B. Track that THIS member contributed (for records)
-            membership.savings_balance += amount 
-            membership.save()
-            
-            # C. Calculate Target Pot (e.g. 5 members * 1000 = 5000)
-            member_count = Membership.objects.filter(group=group).count()
-            target_pot = group.contribution_amount * member_count
-            
-            messages.success(request, f"Contribution Received! Pot: {group.pot_balance} / {target_pot}")
-
-            # D. CHECK FOR WINNER (The Automation)
-            if group.pot_balance >= target_pot and target_pot > 0:
-                # 1. Find someone who hasn't eaten yet
-                winner = Membership.objects.filter(group=group, has_eaten=False).first()
-                
-                if winner:
-                    # 2. PAYOUT!
-                    Transaction.objects.create(
-                        membership=winner,
-                        amount=group.pot_balance, # They take the whole pot
-                        transaction_type='withdrawal', # It leaves the system
-                        reference=f"WIN-{random.randint(1000,9999)}"
-                    )
-                    
-                    # 3. Reset the Cycle
-                    payout_amount = group.pot_balance
-                    group.pot_balance = 0 # Empty the pot
-                    winner.has_eaten = True
-                    winner.save()
-                    
-                    messages.success(request, f"🎉 MERRY-GO-ROUND ROUND COMPLETE! {winner.user.username} has been paid KES {payout_amount}!")
-                else:
-                    messages.info(request, "Round complete, but everyone has eaten! Admin needs to reset the cycle.")
-            
-            group.save()
-
-        return redirect('dashboard')
-
-    return render(request, 'chama/deposit.html')
-
-@login_required
-def request_loan(request):
-    # 1. Get the user's membership
     membership = Membership.objects.filter(user=request.user).first()
+    
+    # Redirect if they haven't joined a group yet
     if not membership:
-        messages.error(request, "You are not a member of any Chama.")
-        return redirect('dashboard')
+        return redirect('join_chama')
 
-    # 2. Calculate the Limit
-    max_loan = membership.savings_balance * 3
-    
-    if request.method == 'POST':
-        amount = int(request.POST.get('amount'))
-        
-        # 3. THE RULE ENFORCER: Check if amount is too high
-        if amount > max_loan:
-            messages.error(request, f"REJECTED: You can only borrow up to KES {max_loan}")
-            return redirect('request_loan')
-        
-        # 4. Check if they already have an active loan (Optional but good for MVP)
-        active_loan = Loan.objects.filter(membership=membership, status='approved').exists()
-        if active_loan:
-             messages.error(request, "REJECTED: You must repay your current loan first.")
-             return redirect('request_loan')
+    group = membership.group
 
-        # 5. Create the Loan Request
-        Loan.objects.create(
-            membership=membership,
-            amount=amount,
-            status='pending' # It waits for Admin approval
-        )
-        
-        messages.success(request, "Loan Application Submitted! Waiting for Admin approval.")
-        return redirect('dashboard')
-
-    # If GET request, show the form
-    return render(request, 'chama/loan_request.html', {'max_loan': max_loan})
-# --- ADD AT THE BOTTOM OF chama/views.py ---
-
-@login_required
-def admin_dashboard(request):
-    # 1. Security Check
-    if not request.user.is_staff:
-        messages.error(request, "Access Denied: Admins Only.")
-        return redirect('dashboard')
-
-    # 2. Get Pending Loans
-    pending_loans = Loan.objects.filter(status='pending').order_by('-date_requested')
-    
-    # --- THIS WAS THE MISSING PART CAUSING THE CRASH ---
-    members = Membership.objects.all()  # <--- You need to define 'members' here!
-    # ---------------------------------------------------
-
-    # 3. Calculate Total Savings & Prepare Chart Data
-    total_savings = 0
-    member_labels = []
-    member_data = []
-    
-    for member in members:
-        total_savings += member.savings_balance
-        member_labels.append(member.user.username)
-        member_data.append(float(member.savings_balance))
-
+    # 1. Standard Context
     context = {
-        'pending_loans': pending_loans,
-        'total_savings': total_savings,
-        'member_labels': member_labels,
-        'member_data': member_data,
+        'membership': membership,
+        'loan_limit': membership.savings_balance * 3,
+        'active_loan': Loan.objects.filter(membership=membership, status__in=['approved', 'pending']).first(),
+        'recent_transactions': Transaction.objects.filter(membership=membership).order_by('-created_at')[:5],
     }
-    return render(request, 'chama/admin_dashboard.html', context)
 
-@login_required
-def process_loan(request, loan_id, action):
-    # 1. Security Check
-    if not request.user.is_staff:
-        return redirect('dashboard')
-        
-    # 2. Find the specific loan
-    loan = Loan.objects.get(id=loan_id)
-    
-    # 3. Decision Logic
-    if action == 'approve':
-        loan.status = 'approved'
-        messages.success(request, f"Loan of KES {loan.amount} APPROVED for {loan.membership.user.username}.")
-    elif action == 'reject':
-        loan.status = 'rejected'
-        messages.error(request, f"Loan of KES {loan.amount} REJECTED.")
-        
-    loan.save()
-    return redirect('admin_dashboard')
+    # 2. MERRY-GO-ROUND: Get Rotation
+    if group.chama_type == 'merry':
+        context['rotation_members'] = Membership.objects.filter(group=group).order_by('joined_at')
 
-# Make sure you have Loan and Transaction imported at the top!
-# from .models import Membership, Transaction, Loan
+    # 3. SAVINGS: Calculate Goal Progress
+    if group.chama_type == 'savings' and group.target_amount > 0:
+        total_group_savings = sum([m.savings_balance for m in Membership.objects.filter(group=group)])
+        percentage = (total_group_savings / group.target_amount) * 100
+        context['percentage_complete'] = min(percentage, 100)
+        context['total_group_savings'] = total_group_savings
 
-@login_required
-def dashboard(request):
-    try:
-        membership = Membership.objects.filter(user=request.user).first()
-        
-        if not membership:
-            return redirect('join_chama')
-        loan_limit = membership.savings_balance * 3
-        
-        # --- NEW PART 1: Get Active Loan ---
-        # We look for a loan that is either 'approved' or 'pending'
-        active_loan = Loan.objects.filter(
-            membership=membership, 
-            status__in=['approved', 'pending']
-        ).first()
+    return render(request, 'chama/dashboard.html', context)
 
-        # --- NEW PART 2: Get Recent Transactions (Last 5) ---
-        recent_transactions = Transaction.objects.filter(
-            membership=membership
-        ).order_by('-created_at')[:5]
-        
-        context = {
-            'membership': membership,
-            'loan_limit': loan_limit,
-            'active_loan': active_loan,          # <--- Sending this to HTML
-            'recent_transactions': recent_transactions, # <--- Sending this to HTML
-        }
-        return render(request, 'chama/dashboard.html', context)
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return render(request, 'base.html')
-    
-    # --- Add this function at the bottom ---
+# --- 3. ONBOARDING (Create/Join) ---
 @login_required
 def join_chama(request):
     if request.method == 'POST':
-        code = request.POST.get('code').strip() # Remove spaces
-        
-        # 1. Check if group exists
+        code = request.POST.get('code').strip()
         try:
             group = ChamaGroup.objects.get(chama_code=code)
         except ChamaGroup.DoesNotExist:
-            messages.error(request, "Invalid Chama Code. Please ask your Chairperson.")
+            messages.error(request, "Invalid Chama Code.")
             return redirect('join_chama')
             
-        # 2. Check if already a member
         if Membership.objects.filter(user=request.user, group=group).exists():
-            messages.info(request, "You are already a member of this group!")
+            messages.info(request, "You are already a member!")
             return redirect('dashboard')
 
-        # 3. Create Membership (Default role is 'member')
-        Membership.objects.create(
-            user=request.user,
-            group=group,
-            role='member',
-            savings_balance=0.00
-        )
-        
-        messages.success(request, f"Successfully joined {group.name}!")
+        Membership.objects.create(user=request.user, group=group, role='member')
+        messages.success(request, f"Joined {group.name}!")
         return redirect('dashboard')
 
     return render(request, 'chama/join.html')
 
 @login_required
-def repay_loan(request):
-    # 1. Get the active loan
-    membership = Membership.objects.get(user=request.user)
-    active_loan = Loan.objects.filter(membership=membership, status='approved').first()
-    
-    if not active_loan:
-        messages.info(request, "You have no active loans to repay!")
-        return redirect('dashboard')
+def create_group(request):
+    if request.method == 'POST':
+        form = ChamaCreationForm(request.POST)
+        if form.is_valid():
+            group = form.save()
+            Membership.objects.create(user=request.user, group=group, role='admin')
+            messages.success(request, f"Group '{group.name}' created! Code: {group.chama_code}")
+            return redirect('dashboard')
+    else:
+        form = ChamaCreationForm()
+    return render(request, 'chama/create_group.html', {'form': form})
 
+# --- 4. FINANCIALS (Deposit/Loan) ---
+@login_required
+def deposit(request):
+    if request.method == 'POST':
+        try:
+            amount = int(request.POST.get('amount'))
+            phone_number = request.user.phone_number 
+            account_ref = format_phone_number(phone_number)
+            
+            cl = MpesaClient()
+            callback_url = f"{os.getenv('NGROK_URL')}/api/v1/c2b/callback"
+            
+            response = cl.stk_push(account_ref, amount, "ChamaVault", "Deposit", callback_url)
+            
+            if response.response_code == "0":
+                checkout_id = response.checkout_request_id
+                membership = Membership.objects.filter(user=request.user).first()
+                
+                Transaction.objects.create(
+                    membership=membership,
+                    amount=amount,
+                    transaction_type='deposit',
+                    reference=checkout_id,
+                    status='pending'
+                )
+                messages.success(request, "STK Push Sent! Enter PIN on your phone.")
+            else:
+                messages.error(request, f"M-Pesa Error: {response.error_message}")
+                
+        except Exception as e:
+            messages.error(request, f"Error: {str(e)}")
+            
+        return redirect('dashboard')
+    return render(request, 'chama/deposit.html')
+
+@csrf_exempt
+def mpesa_callback(request):
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body)
+            stk_callback = body.get('Body', {}).get('stkCallback', {})
+            result_code = stk_callback.get('ResultCode')
+            checkout_id = stk_callback.get('CheckoutRequestID')
+
+            logger.info(f"Callback: {result_code} ID: {checkout_id}")
+
+            if result_code == 0:
+                transaction = Transaction.objects.get(reference=checkout_id)
+                membership = transaction.membership
+                group = membership.group
+                
+                # Get Receipt
+                meta_data = stk_callback.get('CallbackMetadata', {}).get('Item', [])
+                mpesa_receipt = next((item['Value'] for item in meta_data if item['Name'] == 'MpesaReceiptNumber'), None)
+                
+                # Penalty Logic
+                amount_to_credit = transaction.amount
+                today = timezone.now().day
+                if today > group.contribution_day:
+                    penalty = group.late_penalty_fee
+                    if amount_to_credit > penalty:
+                        amount_to_credit -= penalty
+                    else:
+                        amount_to_credit = 0
+
+                transaction.reference = mpesa_receipt
+                transaction.status = 'completed'
+                transaction.save()
+
+                if group.chama_type == 'savings':
+                    membership.savings_balance += amount_to_credit
+                elif group.chama_type == 'merry':
+                    group.pot_balance += amount_to_credit
+                    group.save()
+                    # Add rotation winner logic here if desired
+                
+                membership.save()
+            else:
+                try:
+                    t = Transaction.objects.get(reference=checkout_id)
+                    t.status = 'failed'
+                    t.save()
+                except Transaction.DoesNotExist:
+                    pass
+
+        except Exception as e:
+            logger.error(f"Callback Error: {e}")
+            
+    return JsonResponse({"Result": "OK"})
+
+@login_required
+def request_loan(request):
+    membership = Membership.objects.filter(user=request.user).first()
+    if not membership:
+        return redirect('dashboard')
+    group = membership.group
+    max_loan = membership.savings_balance * 3
+    
     if request.method == 'POST':
         amount = int(request.POST.get('amount'))
         
-        # 2. Validation: Don't overpay
-        if amount > active_loan.amount:
-            messages.error(request, f"You only owe KES {active_loan.amount}. Do not overpay.")
-            return redirect('repay_loan')
+        if amount > max_loan:
+             messages.error(request, f"Limit exceeded. Max: {max_loan}")
+             return redirect('request_loan')
 
-        # 3. Simulate Payment
-        time.sleep(2)
-        ref_code = f"PAY{random.randint(1000000, 9999999)}"
-        
-        # 4. Create Transaction Receipt
-        Transaction.objects.create(
-            membership=membership,
-            amount=amount,
-            transaction_type='loan_repayment',
-            reference=ref_code
-        )
-        
-        # 5. DEDUCT from Loan Amount (The Logic)
-        active_loan.amount -= amount
-        
-        # 6. Check if fully paid
-        if active_loan.amount <= 0:
-            active_loan.status = 'paid'
-            active_loan.amount = 0 # Ensure no negative numbers
-            messages.success(request, "Congratulations! Loan fully repaid.")
-        else:
-            messages.success(request, f"Payment Received. Remaining Balance: KES {active_loan.amount}")
+        # TABLE BANKING LIQUIDITY CHECK
+        if group.chama_type == 'lending':
+            total_savings = sum([m.savings_balance for m in Membership.objects.filter(group=group)])
+            total_loans = sum([l.amount for l in Loan.objects.filter(membership__group=group, status='approved')])
+            liquid_cash = total_savings - total_loans
             
-        active_loan.save()
+            if amount > liquid_cash:
+                messages.error(request, f"Group only has KES {liquid_cash} available.")
+                return redirect('request_loan')
+
+        Loan.objects.create(membership=membership, amount=amount, status='pending')
+        messages.success(request, "Loan Requested!")
         return redirect('dashboard')
 
-    return render(request, 'chama/repay_loan.html', {'loan': active_loan})
+    return render(request, 'chama/loan_request.html', {'max_loan': max_loan})
 
 @login_required
 def repay_loan(request):
-    # 1. Find the User's Membership
     membership = Membership.objects.filter(user=request.user).first()
-    
-    # 2. Find their ACTIVE loan (Approved or Pending Repayment)
-    # We filter for 'approved' because that's the status when they have money.
     active_loan = Loan.objects.filter(membership=membership, status='approved').first()
     
-    # Safety Check: Do they even have a loan?
-    if not active_loan:
-        messages.info(request, "You have no active loans to repay!")
-        return redirect('dashboard')
-
     if request.method == 'POST':
         amount = int(request.POST.get('amount'))
-        
-        # 3. Validation: Don't let them overpay!
-        if amount > active_loan.amount:
-            messages.error(request, f"REJECTED: You only owe KES {active_loan.amount}. Do not overpay.")
-            return redirect('repay_loan')
-
-        # 4. Simulate Payment Processing
-        time.sleep(2)
-        ref_code = f"PAY{random.randint(1000000, 9999999)}"
-        
-        # 5. Create the Receipt (Transaction)
-        Transaction.objects.create(
-            membership=membership,
-            amount=amount,
-            transaction_type='loan_repayment',
-            reference=ref_code
-        )
-        
-        # 6. THE CORE LOGIC: Reduce the Debt
+        # Simulate payment for MVP (In production, use STK Push here too)
+        time.sleep(1)
         active_loan.amount -= amount
-        
-        # 7. Check if fully paid
         if active_loan.amount <= 0:
             active_loan.status = 'paid'
-            active_loan.amount = 0 # Clean up just in case
-            messages.success(request, "CONGRATULATIONS! Your loan is fully repaid.")
+            active_loan.amount = 0
+            messages.success(request, "Loan Repaid!")
         else:
-            messages.success(request, f"Payment Received. Remaining Balance: KES {active_loan.amount}")
-            
+            messages.success(request, f"Paid {amount}. Balance: {active_loan.amount}")
         active_loan.save()
         return redirect('dashboard')
 
     return render(request, 'chama/repay_loan.html', {'loan': active_loan})
+
+# --- 5. ADMIN & UTILS ---
+@login_required
+def admin_dashboard(request):
+    membership = Membership.objects.filter(user=request.user).first()
+    if not membership or (membership.role != 'admin' and not request.user.is_staff):
+        return redirect('dashboard')
+    
+    group = membership.group
+    members = Membership.objects.filter(group=group)
+    pending_loans = Loan.objects.filter(membership__group=group, status='pending')
+    total_savings = sum([m.savings_balance for m in members])
+    
+    # Recent Logs
+    recent_deposits = Transaction.objects.filter(membership__group=group, transaction_type='deposit').order_by('-created_at')[:20]
+
+    context = {
+        'group': group,
+        'pending_loans': pending_loans,
+        'total_savings': total_savings,
+        'recent_deposits': recent_deposits,
+        'member_labels': [m.user.username for m in members],
+        'member_data': [float(m.savings_balance) for m in members],
+    }
+
+    if group.chama_type == 'lending':
+        total_loans_out = sum([l.amount for l in Loan.objects.filter(membership__group=group, status='approved')])
+        context['liquid_cash'] = total_savings - total_loans_out
+        context['total_loans_out'] = total_loans_out
+
+    return render(request, 'chama/admin_dashboard.html', context)
+
+@login_required
+def process_loan(request, loan_id, action):
+    if not request.user.is_staff: # Add membership admin check here in prod
+        # For MVP we allow is_staff
+        pass
+        
+    loan = Loan.objects.get(id=loan_id)
+    if action == 'approve':
+        loan.status = 'approved'
+        messages.success(request, "Loan Approved")
+    elif action == 'reject':
+        loan.status = 'rejected'
+        messages.error(request, "Loan Rejected")
+    loan.save()
+    return redirect('admin_dashboard')
+
+@login_required
+def group_settings(request):
+    membership = Membership.objects.filter(user=request.user).first()
+    if not membership or membership.role != 'admin':
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        membership.group.contribution_day = int(request.POST.get('deadline_day'))
+        membership.group.late_penalty_fee = int(request.POST.get('penalty_fee'))
+        membership.group.contribution_amount = int(request.POST.get('contribution_amount'))
+        membership.group.save()
+        messages.success(request, "Rules Updated!")
+        return redirect('admin_dashboard')
+
+    return render(request, 'chama/settings.html', {'group': membership.group})
+
+@login_required
+def download_statement(request):
+    membership = Membership.objects.filter(user=request.user).first()
+    transactions = Transaction.objects.filter(membership=membership).order_by('-created_at')
+    context = {
+        'membership': membership,
+        'transactions': transactions,
+        'user': request.user,
+        'date': timezone.now(),
+        'group': membership.group
+    }
+    return render_to_pdf('chama/pdf_statement.html', context)

@@ -1,0 +1,4 @@
+Operations to perform:
+  Apply all migrations: accounts, admin, auth, chama, contenttypes, django_daraja, sessions
+Running migrations:
+  No migrations to apply.
